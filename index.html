@@ -197,7 +197,7 @@ const VIEWS = {
         return `<tr><td>${r.has_summary ? `<a href="#" data-case="${esc(r.id)}"><b>${esc(r.brand)}</b></a>` : `<b>${esc(r.brand)}</b>`}<div class="muted">${esc(r.competitors || "")}</div></td>
         <td>${esc(r.category || "")}<div class="muted">${esc([r.region, r.sites].filter(Boolean).join("・"))}</div></td>
         <td><span class="chip ${c}">${l}</span>${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
-        <td class="muted">${esc(String(r.created_at).slice(0, 16).replace("T", " "))}</td></tr>`; }).join("")}</table></div>`;
+        <td class="muted">${esc(new Date(r.created_at).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }))}</td></tr>`; }).join("")}</table></div>`;
     return head("開新調查") + `<div class="card"><form id="cf" class="form">
       ${inp("brand", "品牌名 *", "例如：八方雲集", "required")}${inp("official_url", "官網網址", "https://…")}
       ${inp("category", "品類", "例如：火鍋、手搖飲、水餃")}${inp("competitors", "競品（逗號分隔）", "例如：四海遊龍, 鍋貼大王")}
