@@ -375,6 +375,7 @@ function intelBlocks(s, tbl, link) {
     ["ig", "IG 平均讚／月發文", "num", r => r.ig_avg_likes == null ? "—" : num(r.ig_avg_likes) + "／" + num(r.ig_per_30d, 1)],
     ["fb", "FB 平均互動／月發文", "num", r => r.fb_avg_reactions == null ? "—" : num(r.fb_avg_reactions) + "／" + num(r.fb_per_30d, 1)],
     ["ads", "Meta 廣告（投放中）", "num", r => r.ads_own == null ? "—" : num(r.ads_own) + "（" + num(r.ads_active) + "）"],
+    ["listed", "上市櫃月營收（年增）", "num", r => r.listed ? `${esc(r.listed.code)}・${esc(r.listed.month)}：${num((r.listed.revenue_k || 0) / 1000, 1)} 百萬（${r.listed.yoy_pct == null ? "—" : num(r.listed.yoy_pct, 1) + "%"}）` : "—"],
   ], rows);
   const counties = [...new Set(cmp.flatMap(r => (r.county_top || []).map(x => x[0])))].slice(0, 8);
   const dist = tbl([["brand", "品牌", "", r => `<span style="white-space:nowrap">${esc(r.brand)}</span>`], ...counties.map(c => [c, c, "num", r => num(((r.county_top || []).find(x => x[0] === c) || [])[1])])], cmp);
@@ -403,7 +404,7 @@ function intelBlocks(s, tbl, link) {
 function exportCase(id) {
   const s = C.sum[id]; if (!s || s.error) return;
   const wb = XLSX.utils.book_new(), add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: "沒有資料" }]), n);
-  add("品牌vs競品", (s.compare || []).map(r => ({ 品牌: r.brand, 官網: r.url, 官網門市: r.stores, 主場門市: r.stores_home, 價格中位數: r.price?.median, 價格P25: r.price?.p25, 價格P75: r.price?.p75, 品項數: r.price?.items, 價格來源: r.price_source, 聲量: r.mentions, 負面比例: r.neg_share, 主要議題: Object.entries(r.issues || {}).slice(0, 5).map(x => x.join(" ")).join("、"), 搜尋熱度: r.trend_avg, 搜尋熱度季變化: r.trend_change, 地圖評分: r.map_rating, 地圖評論數: r.map_reviews, IG平均讚: r.ig_avg_likes, IG月發文: r.ig_per_30d, FB平均互動: r.fb_avg_reactions, FB月發文: r.fb_per_30d, Meta廣告: r.ads_own, 投放中: r.ads_active })));
+  add("品牌vs競品", (s.compare || []).map(r => ({ 品牌: r.brand, 官網: r.url, 官網門市: r.stores, 主場門市: r.stores_home, 價格中位數: r.price?.median, 價格P25: r.price?.p25, 價格P75: r.price?.p75, 品項數: r.price?.items, 價格來源: r.price_source, 聲量: r.mentions, 負面比例: r.neg_share, 主要議題: Object.entries(r.issues || {}).slice(0, 5).map(x => x.join(" ")).join("、"), 搜尋熱度: r.trend_avg, 搜尋熱度季變化: r.trend_change, 地圖評分: r.map_rating, 地圖評論數: r.map_reviews, IG平均讚: r.ig_avg_likes, IG月發文: r.ig_per_30d, FB平均互動: r.fb_avg_reactions, FB月發文: r.fb_per_30d, Meta廣告: r.ads_own, 投放中: r.ads_active, 上市櫃代號: r.listed?.code, 營收月份: r.listed?.month, 當月營收千元: r.listed?.revenue_k, 營收年增: r.listed?.yoy_pct, 累計年增: r.listed?.ytd_yoy_pct })));
   add("菜單價格", Object.entries(s.competitor_menus || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, 品項: x.name, 價格: x.price, 最高價: x.price_max }))));
   add("競品門市", Object.entries(s.competitor_stores || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, ...x }))));
   add("地圖評分", Object.entries(s.maps || {}).flatMap(([b, m]) => (m?.rows || []).map(x => ({ 品牌: b, ...x }))));
