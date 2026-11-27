@@ -68,6 +68,12 @@ tr:last-child td{border-bottom:0}
 .bars .track{height:10px;background:var(--line);border-radius:6px;overflow:hidden}
 .bars .fill{height:100%;border-radius:6px}
 #tabbar{display:none}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px 14px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub)}
+.form input{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;color:var(--ink);font-size:15px}
+.ok{background:var(--okbg);color:var(--ok);padding:10px 12px;border-radius:10px;margin:10px 0;font-size:14px}
+details{border-top:1px solid var(--line);padding:8px 0}details summary{cursor:pointer;font-weight:600}
+
 @media (max-width:820px){
  #side{display:none}
  #main{padding:16px 16px calc(84px + env(safe-area-inset-bottom))}
@@ -96,7 +102,7 @@ const REPO = "https://github.com/marvintien90-jpg/market-intel";
 const sb = window.supabase.createClient(SB_URL, SB_KEY);
 const BCOL = ["var(--b1)", "var(--b2)", "var(--b3)", "var(--b4)"];
 const PAGES = [
-  ["home", "總覽", "◎"], ["stores", "門市", "⌖"], ["alerts", "警示", "!"],
+  ["home", "總覽", "◎"], ["cases", "調查", "＋"], ["stores", "門市", "⌖"], ["alerts", "警示", "!"],
   ["verify", "查證", "✓"], ["news", "動態", "≡"], ["export", "匯出", "⇩"]];
 const MET = {
   stores_official: ["官網門市", "家"], stores_operational: ["地圖營業", "家"], map_coverage: ["地圖覆蓋", "%"],
@@ -105,6 +111,8 @@ const MET = {
   search_share_52w: ["搜尋聲量占比", "%"], search_yoy_13w: ["近13週搜尋年增", "%"], revenue_decline_streak: ["營收連續年減", "月"]};
 let S = { user: null, data: null, page: "home", err: "", busy: false, f: { brand: "", status: "operational", q: "", sort: "brand", dir: 1 } };
 let map = null;
+const C = { list: null, sel: null, sum: {}, msg: "", busy: false, timer: null, draft: {} };
+const ST = { queued: ["排隊中", "n"], running: ["調查中", "y"], done: ["完成", "g"], partial: ["部分完成", "y"], failed: ["失敗", "r"] };
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = s => document.querySelector(s);
@@ -180,6 +188,26 @@ function loginHtml() {
 const head = (t, extra = "") => `<div class="top"><h2>${t}</h2>${extra}<button class="btn s" data-reload title="重新讀取最新資料">重新整理</button></div>`;
 
 const VIEWS = {
+  cases() {
+    if (C.sel) return caseDetail(C.sel);
+    const d = C.draft, inp = (k, lab, ph, req = "") => `<label>${lab}<input name="${k}" placeholder="${esc(ph)}" value="${esc(d[k] || "")}" ${req}></label>`;
+    const list = C.list;
+    const rows = !list ? '<div class="muted">讀取中…</div>' : !list.length ? '<div class="muted">還沒有調查，填上面表單開第一個。</div>' :
+      `<div class="tw"><table><tr><th>品牌</th><th>品類／區域</th><th>狀態</th><th>送出</th></tr>${list.map(r => { const [l, c] = ST[r.status] || [r.status, "n"];
+        return `<tr><td>${r.has_summary ? `<a href="#" data-case="${esc(r.id)}"><b>${esc(r.brand)}</b></a>` : `<b>${esc(r.brand)}</b>`}<div class="muted">${esc(r.competitors || "")}</div></td>
+        <td>${esc(r.category || "")}<div class="muted">${esc([r.region, r.sites].filter(Boolean).join("・"))}</div></td>
+        <td><span class="chip ${c}">${l}</span>${r.error ? `<div class="muted">${esc(r.error)}</div>` : ""}</td>
+        <td class="muted">${esc(String(r.created_at).slice(0, 16).replace("T", " "))}</td></tr>`; }).join("")}</table></div>`;
+    return head("開新調查") + `<div class="card"><form id="cf" class="form">
+      ${inp("brand", "品牌名 *", "例如：八方雲集", "required")}${inp("official_url", "官網網址", "https://…")}
+      ${inp("category", "品類", "例如：火鍋、手搖飲、水餃")}${inp("competitors", "競品（逗號分隔）", "例如：四海遊龍, 鍋貼大王")}
+      ${inp("region", "主場縣市", "例如：臺中市")}${inp("sites", "想評估的行政區（逗號分隔）", "例如：臺中市太平區, 新竹市東區")}
+      ${inp("aliases", "品牌別名／簡稱（逗號分隔）", "例如：八方")}
+      <div style="display:flex;align-items:flex-end;gap:10px"><button class="btn" ${C.busy ? "disabled" : ""}>${C.busy ? "送出中…" : "開始調查"}</button></div></form>
+      ${C.msg ? `<div class="${C.msg.startsWith("✓") ? "ok" : "err"}">${esc(C.msg.replace(/^✓ /, ""))}</div>` : ""}
+      <p class="muted" style="margin:10px 0 0">一次會跑 10 個面向：菜單價格、門市分布、口碑、促銷、通路、社群、人力、公司登記、商圈人口所得、競品。付費查詢每案上限 NT$9，約 15–30 分鐘完成。</p></div>
+      <div class="sec"><div class="top"><h2 style="font-size:18px">調查紀錄</h2><button class="btn s" data-crefresh>更新進度</button></div>${rows}</div>`;
+  },
   home() {
     const d = S.data, list = alerts();
     const cards = brands().map(b => `<div class="card"><div class="brand-h"><span class="dot" style="background:${bcol(b)}"></span><h3 style="margin:0">${esc(b)}</h3></div>
@@ -279,9 +307,67 @@ function exportX(kind) {
   XLSX.writeFile(wb, `市調中樞_${kind === "all" ? "完整" : NAMES[kind]}_${day}.xlsx`);
 }
 
+async function caseCall(body) {
+  const { data, error } = await sb.functions.invoke("mi-case", { body });
+  if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch (_) {} throw new Error(m); }
+  return data;
+}
+async function loadCases(refresh = true) {
+  clearTimeout(C.timer);
+  if (refresh) { try { await caseCall({ action: "refresh" }); } catch (e) { if (!/金鑰/.test(e.message)) C.msg = "更新進度失敗：" + e.message; else C.msg = "系統還沒接上 GitHub 金鑰，暫時無法開跑。"; } }
+  const { data, error } = await sb.rpc("mi_cases");
+  C.list = error ? [] : data;
+  if (error) C.msg = "讀取調查紀錄失敗：" + error.message;
+  if (S.page === "cases") render();
+  if ((C.list || []).some(r => r.status === "queued" || r.status === "running")) C.timer = setTimeout(() => S.page === "cases" && loadCases(), 45000);
+}
+async function openCase(id) {
+  C.sel = id; render();
+  if (!C.sum[id]) { const { data, error } = await sb.rpc("mi_case_summary", { p_id: id }); C.sum[id] = error ? { error: error.message } : data; }
+  render(); window.scrollTo(0, 0);
+}
+function caseDetail(id) {
+  const s = C.sum[id], back = `<button class="btn s" data-cback>← 回調查列表</button>`;
+  if (!s) return head("讀取中…", back);
+  if (s.error) return head("讀取失敗", back) + `<div class="err">${esc(s.error)}</div>`;
+  const b = s.budget || {}, o = s.official || {}, link = (u, t) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t || u)}</a>` : esc(t || "");
+  const tbl = (cols, rows) => rows.length ? `<div class="tw"><table><tr>${cols.map(c => `<th>${c[1]}</th>`).join("")}</tr>${rows.map(r => `<tr>${cols.map(c => `<td class="${c[2] || ""}">${c[3] ? c[3](r) : esc(r[c[0]] ?? "")}</td>`).join("")}</tr>`).join("")}</table></div>` : '<div class="muted">這次沒有抓到資料</div>';
+  const dists = [...new Set([...Object.keys(s.population || {}), ...Object.keys(s.income || {})])].map(k => ({ k, ...(s.population || {})[k], ...(s.income || {})[k] })).sort((a, b) => (b.people || 0) - (a.people || 0));
+  const search = Object.entries(s.search || {}).map(([tag, xs]) => `<details><summary>${esc(tag)}（${xs.length}）</summary>${xs.map(x => `<div class="it"><b>${link(x.url, x.title)}</b> <span class="muted">${esc((x.date || "").slice(0, 10))}</span><div class="muted">${esc(x.snippet)}</div></div>`).join("")}</details>`).join("");
+  return head(esc(s.brand) + " 調查結果", `<button class="btn s" data-cxlsx="${esc(id)}">匯出 Excel</button>${back}`) +
+    `<p class="muted" style="margin-top:-8px">${esc(s.category || "")}・競品 ${esc((s.competitors || []).join("、") || "未填")}・付費 NT$${num(b.spent_twd, 2)}（上限 ${num(b.limit_twd, 1)}）</p>
+    <div class="grid g4">
+      <div class="card"><h3>官網</h3><div class="kv"><span>讀到頁數</span><b>${num(o.pages)}</b><span>門市（自動擷取）</span><b>${num((o.stores || []).length)}</b><span>官方消息</span><b>${num((o.news || []).length)}</b></div></div>
+      <div class="card"><h3>網路聲量</h3><div class="kv"><span>新聞</span><b>${num((s.news || []).length)}</b><span>PTT</span><b>${num((s.ptt || []).length)}</b><span>搜尋面向</span><b>${num(Object.keys(s.search || {}).length)}</b></div></div>
+      <div class="card"><h3>公司與商圈</h3><div class="kv"><span>登記公司／行號</span><b>${num((s.registry || []).length)}</b><span>行政區</span><b>${num(dists.length)}</b></div></div></div>
+    <div class="card sec"><h3>官網門市（自動擷取，信心 B）</h3>${tbl([["name", "門市"], ["address", "地址"], ["phone", "電話"]], o.stores || [])}</div>
+    <div class="card sec"><h3>官方消息時間軸</h3>${tbl([["date", "日期"], ["title", "標題", "", r => link(r.url, r.title)]], o.news || [])}</div>
+    <div class="card sec list"><h3>各面向搜尋重點（點開看）</h3>${search || '<div class="muted">沒有付費搜尋結果</div>'}</div>
+    <div class="card sec"><h3>商圈人口與所得</h3>${tbl([["k", "行政區"], ["people", "人口", "num", r => num(r.people)], ["share_20_49", "20–49 歲", "num", r => r.share_20_49 == null ? "—" : num(r.share_20_49 * 100, 1) + "%"], ["share_65", "65 歲以上", "num", r => r.share_65 == null ? "—" : num(r.share_65 * 100, 1) + "%"], ["median_k", "所得中位數（千元）", "num", r => num(r.median_k)]], dists)}</div>
+    <div class="card sec"><h3>公司登記</h3>${tbl([["name", "名稱"], ["id", "統編"], ["capital", "資本額", "num", r => num(r.capital)], ["owner", "負責人"], ["address", "地址"], ["setup", "設立"]], s.registry || [])}</div>
+    <div class="card sec"><h3>新聞</h3>${tbl([["title", "標題", "", r => link(r.url, r.title)], ["source", "來源"], ["date", "日期", "", r => esc(String(r.date || "").slice(5, 16))]], (s.news || []).slice(0, 40))}</div>
+    <div class="card sec"><h3>PTT</h3>${tbl([["board", "看板"], ["title", "標題", "", r => link(r.url, r.title)], ["date_md", "日期"], ["push", "推"]], (s.ptt || []).slice(0, 40))}</div>`;
+}
+function exportCase(id) {
+  const s = C.sum[id]; if (!s || s.error) return;
+  const wb = XLSX.utils.book_new(), add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: "沒有資料" }]), n);
+  add("官網門市", s.official?.stores || []); add("官方消息", s.official?.news || []);
+  add("搜尋重點", Object.entries(s.search || {}).flatMap(([tag, xs]) => xs.map(x => ({ 面向: tag, ...x }))));
+  add("新聞", s.news || []); add("PTT", s.ptt || []); add("公司登記", s.registry || []);
+  add("商圈", [...new Set([...Object.keys(s.population || {}), ...Object.keys(s.income || {})])].map(k => ({ 行政區: k, ...(s.population || {})[k], ...(s.income || {})[k] })));
+  XLSX.writeFile(wb, `市調_${s.brand}_${id}.xlsx`);
+}
+
 document.addEventListener("click", e => {
+  const ct = e.target.closest("[data-case],[data-cback],[data-crefresh],[data-cxlsx]");
+  if (ct) { e.preventDefault();
+    if (ct.dataset.case) openCase(ct.dataset.case);
+    else if (ct.hasAttribute("data-cback")) { C.sel = null; render(); }
+    else if (ct.hasAttribute("data-crefresh")) { C.msg = ""; loadCases(); }
+    else if (ct.dataset.cxlsx) exportCase(ct.dataset.cxlsx);
+    return; }
   const t = e.target.closest("[data-go],[data-reload],[data-logout],[data-xlsx],[data-sort]"); if (!t) return;
-  if (t.dataset.go) { e.preventDefault(); S.page = t.dataset.go; try { localStorage.setItem("mi_page", S.page); } catch (_) {} render(); window.scrollTo(0, 0); }
+  if (t.dataset.go) { e.preventDefault(); S.page = t.dataset.go; C.sel = null; try { localStorage.setItem("mi_page", S.page); } catch (_) {} render(); window.scrollTo(0, 0); if (S.page === "cases") loadCases(); }
   else if (t.hasAttribute("data-reload")) load();
   else if (t.hasAttribute("data-logout")) { e.preventDefault(); sb.auth.signOut(); }
   else if (t.dataset.xlsx) exportX(t.dataset.xlsx);
@@ -289,7 +375,15 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("change", e => { const k = e.target.dataset?.f; if (k && k !== "q") { S.f[k] = e.target.value; render(); } });
 let qt; document.addEventListener("input", e => { if (e.target.dataset?.f === "q") { S.f.q = e.target.value; clearTimeout(qt); qt = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('[data-f="q"]'); if (i) { i.focus(); i.setSelectionRange(pos, pos); } }, 250); } });
+document.addEventListener("input", e => { const f = e.target.closest("#cf"); if (f && e.target.name) C.draft[e.target.name] = e.target.value; });
 document.addEventListener("submit", async e => {
+  if (e.target.id === "cf") {
+    e.preventDefault(); const body = { action: "create", ...C.draft };
+    C.busy = true; C.msg = ""; render();
+    try { await caseCall(body); C.msg = "✓ 已送出「" + (C.draft.brand || "") + "」，約 15–30 分鐘完成，這頁會自動更新進度。"; C.draft = {}; }
+    catch (err) { C.msg = /金鑰/.test(err.message) ? "系統還沒接上 GitHub 金鑰，暫時無法開跑。" : "送出失敗：" + err.message; }
+    C.busy = false; await loadCases(false); return;
+  }
   if (e.target.id !== "lf") return; e.preventDefault();
   const email = e.target.em.value.trim(), password = e.target.pw.value;
   S.email = email;
@@ -304,7 +398,7 @@ sb.auth.onAuthStateChange((ev, session) => {
   const u = session?.user || null, changed = (u?.id || null) !== (S.user?.id || null);
   S.user = u;
   if (!u) { S.data = null; render(); return; }
-  if (changed || !S.data) load();
+  if (changed || !S.data) load().then(() => { if (S.page === "cases") loadCases(); });
 });
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
