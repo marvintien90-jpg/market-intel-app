@@ -340,6 +340,7 @@ function caseDetail(id) {
       <div class="card"><h3>官網</h3><div class="kv"><span>讀到頁數</span><b>${num(o.pages)}</b><span>門市（自動擷取）</span><b>${num((o.stores || []).length)}</b><span>官方消息</span><b>${num((o.news || []).length)}</b></div></div>
       <div class="card"><h3>網路聲量</h3><div class="kv"><span>新聞</span><b>${num((s.news || []).length)}</b><span>PTT</span><b>${num((s.ptt || []).length)}</b><span>搜尋面向</span><b>${num(Object.keys(s.search || {}).length)}</b></div></div>
       <div class="card"><h3>公司與商圈</h3><div class="kv"><span>登記公司／行號</span><b>${num((s.registry || []).length)}</b><span>行政區</span><b>${num(dists.length)}</b></div></div></div>
+    ${intelBlocks(s, tbl, link)}
     <div class="card sec"><h3>官網門市（自動擷取，信心 B）</h3>${tbl([["name", "門市"], ["address", "地址"], ["phone", "電話"]], o.stores || [])}</div>
     <div class="card sec"><h3>官方消息時間軸</h3>${tbl([["date", "日期"], ["title", "標題", "", r => link(r.url, r.title)]], o.news || [])}</div>
     <div class="card sec list"><h3>各面向搜尋重點（點開看）</h3>${search || '<div class="muted">沒有付費搜尋結果</div>'}</div>
@@ -348,9 +349,64 @@ function caseDetail(id) {
     <div class="card sec"><h3>新聞</h3>${tbl([["title", "標題", "", r => link(r.url, r.title)], ["source", "來源"], ["date", "日期", "", r => esc(String(r.date || "").slice(5, 16))]], (s.news || []).slice(0, 40))}</div>
     <div class="card sec"><h3>PTT</h3>${tbl([["board", "看板"], ["title", "標題", "", r => link(r.url, r.title)], ["date_md", "日期"], ["push", "推"]], (s.ptt || []).slice(0, 40))}</div>`;
 }
+const BC = ["var(--b1)", "var(--b2)", "var(--b3)", "var(--b4)", "var(--sub)"];
+function trendSvg(t) {
+  const ks = t?.keywords || [], sr = t?.series || {}; const n = Math.max(0, ...ks.map(k => (sr[k] || []).length));
+  if (!n) return '<div class="muted">' + esc(t?.error || "這次沒有搜尋熱度資料") + '</div>';
+  const W = 640, H = 180, P = 24, x = i => P + i * (W - 2 * P) / Math.max(1, n - 1), y = v => H - P - v * (H - 2 * P) / 100;
+  const lines = ks.map((k, j) => `<polyline fill="none" stroke="${BC[j]}" stroke-width="2" points="${(sr[k] || []).map((p, i) => x(i).toFixed(1) + "," + y(p.v).toFixed(1)).join(" ")}"/>`).join("");
+  const first = (sr[ks[0]] || [])[0]?.t || "", last = (sr[ks[0]] || []).at(-1)?.t || "";
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="搜尋熱度"><line x1="${P}" y1="${H - P}" x2="${W - P}" y2="${H - P}" stroke="var(--line)"/>${lines}
+    <text x="${P}" y="${H - 6}" font-size="11" fill="var(--sub)">${esc(first)}</text><text x="${W - P}" y="${H - 6}" font-size="11" fill="var(--sub)" text-anchor="end">${esc(last)}</text></svg>
+    <div class="muted" style="display:flex;gap:14px;flex-wrap:wrap">${ks.map((k, j) => `<span><b style="color:${BC[j]}">━</b> ${esc(k)}</span>`).join("")}</div>`;
+}
+function intelBlocks(s, tbl, link) {
+  const cmp = s.compare || []; if (!cmp.length) return "";
+  const pct = v => v == null ? "—" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%";
+  const price = p => p && p.items ? `${num(p.median)}（${num(p.p25)}–${num(p.p75)}，${num(p.items)} 項）` : "—";
+  const rows = cmp.map(r => ({ ...r }));
+  const main = tbl([
+    ["brand", "品牌", "", r => `<span style="white-space:nowrap">${r.url ? link(r.url, r.brand) : esc(r.brand)}</span>` + (r.site_error ? `<div class="muted">${esc(r.site_error)}</div>` : "")],
+    ["stores", "官網門市", "num", r => num(r.stores)], ["stores_home", "主場門市", "num", r => num(r.stores_home)],
+    ["price", "價格中位數（中間一半）", "num", r => price(r.price)],
+    ["mentions", "新聞＋PTT 聲量", "num", r => num(r.mentions)], ["neg_share", "負面比例", "num", r => r.neg_share == null ? "—" : Math.round(r.neg_share * 100) + "%"],
+    ["trend_avg", "搜尋熱度", "num", r => r.trend_avg == null ? "—" : num(r.trend_avg) + `（季 ${pct(r.trend_change)}）`],
+    ["map_rating", "地圖評分", "num", r => r.map_rating == null ? "—" : num(r.map_rating, 2) + `（${num(r.map_reviews)} 則）`],
+    ["ig", "IG 平均讚／月發文", "num", r => r.ig_avg_likes == null ? "—" : num(r.ig_avg_likes) + "／" + num(r.ig_per_30d, 1)],
+    ["fb", "FB 平均互動／月發文", "num", r => r.fb_avg_reactions == null ? "—" : num(r.fb_avg_reactions) + "／" + num(r.fb_per_30d, 1)],
+    ["ads", "Meta 廣告（投放中）", "num", r => r.ads_own == null ? "—" : num(r.ads_own) + "（" + num(r.ads_active) + "）"],
+  ], rows);
+  const counties = [...new Set(cmp.flatMap(r => (r.county_top || []).map(x => x[0])))].slice(0, 8);
+  const dist = tbl([["brand", "品牌", "", r => `<span style="white-space:nowrap">${esc(r.brand)}</span>`], ...counties.map(c => [c, c, "num", r => num(((r.county_top || []).find(x => x[0] === c) || [])[1])])], cmp);
+  const iss = Object.entries(s.issues || {}).map(([b, o]) => `<details><summary><b>${esc(b)}</b>：${Object.entries(o.issues || {}).slice(0, 6).map(([k, v]) => esc(k) + " " + v).join("・") || "沒有提及"}${o.neg ? `・<span style="color:var(--red)">負面 ${o.neg}</span>` : ""}</summary>${(o.neg_titles || []).map(x => `<div class="it">${link(x.url, x.title)} <span class="muted">${esc(x.src)} ${esc(x.date)}</span></div>`).join("") || '<div class="muted">沒有負面標題</div>'}</details>`).join("");
+  const menus = Object.entries(s.competitor_menus || {}).filter(([, xs]) => xs.length).map(([b, xs]) => `<details><summary>${esc(b)}（${xs.length} 項）</summary>${tbl([["name", "品項"], ["price", "價格", "num", r => num(r.price) + (r.price_max && r.price_max !== r.price ? "–" + num(r.price_max) : "")]], xs)}</details>`).join("");
+  const mp = Object.entries(s.maps || {}).filter(([, m]) => m && !m.error).map(([b, m]) => `<details><summary>${esc(b)}：${num(m.places)} 家、平均 ${num(m.avg_rating, 2)}、評論 ${num(m.reviews_total)}${m.closed ? `、<span style="color:var(--red)">已關 ${m.closed}</span>` : ""}</summary>${tbl([["name", "門市"], ["rating", "評分", "num"], ["reviews", "評論數", "num", r => num(r.reviews)], ["status", "狀態", "", r => r.status === "operational" ? "營業中" : esc(r.status || "")]], (m.rows || []).slice().sort((a, b) => (a.rating || 9) - (b.rating || 9)))}</details>`).join("");
+  const ad = Object.entries(s.meta_ads || {}).map(([b, a]) => a.error ? `<div class="muted">${esc(b)}：${esc(a.error)}</div>` : `<details><summary>${esc(b)}：自家粉專廣告 ${num(a.own_ads)}（投放中 ${num(a.own_active)}）、別人提到品牌的廣告 ${num(a.mention_ads)}</summary>${(a.samples || []).map(x => `<div class="it"><b>${esc(x.page)}</b> <span class="muted">${esc(x.start || "")} ${x.active ? "投放中" : "已停"}</span><div class="muted">${esc(x.text)}</div></div>`).join("")}</details>`).join("");
+  const ch = s.changes || {};
+  const chg = ch.first ? '<div class="muted">這是這個品牌第一次調查，下次再調查就會列出新開／消失的門市與新消息。</div>' : ch.error ? `<div class="muted">${esc(ch.error)}</div>` :
+    `<div class="kv"><span>上次（${esc(ch.compared_to || "")}）門市</span><b>${num(ch.prev_stores)}</b><span>這次門市</span><b>${num(ch.now_stores)}</b></div>
+     <details><summary>新出現 ${num((ch.opened || []).length)} 家</summary>${tbl([["name", "門市"], ["address", "地址"]], ch.opened || [])}</details>
+     <details><summary>消失 ${num((ch.closed || []).length)} 家</summary>${tbl([["name", "門市"], ["address", "地址"]], ch.closed || [])}</details>
+     <details><summary>新的官方消息 ${num((ch.new_news || []).length)} 則</summary>${tbl([["date", "日期"], ["title", "標題"]], ch.new_news || [])}</details>`;
+  const learned = (s.official?.learned || []).map(l => `<li>${esc(l.learned)}${l.key ? "：參數 " + esc(l.key) : ""}${l.options ? "（" + l.options + " 個選項）" : ""}${l.clicks ? "（點了 " + l.clicks + " 次）" : ""}${l.new_records != null ? "，多抓到 " + l.new_records + " 筆" : ""}</li>`).join("");
+  const rel = s.related && !s.related.error ? ["top", "rising"].filter(k => s.related[k]).map(k => `<div><b>${k === "top" ? "最常一起搜" : "正在竄升"}</b>：${s.related[k].map(x => esc(x.q)).join("、")}</div>`).join("") : "";
+  return `<div class="card sec"><h3>品牌 vs 競品總表</h3>${main}<p class="muted">價格與門市來自官網（官網抓不到時用網路菜單整理頁，信心 C）；聲量與負面比例由新聞、PTT 標題分類；搜尋熱度是同一把尺的相對值（0–100）。</p></div>
+    <div class="card sec"><h3>搜尋熱度（近 12 個月）</h3>${trendSvg(s.trends)}${rel ? `<div style="margin-top:8px">${rel}</div>` : ""}</div>
+    <div class="card sec"><h3>門市縣市分布</h3>${dist}</div>
+    <div class="card sec list"><h3>輿情議題（點開看負面標題）</h3>${iss || '<div class="muted">沒有資料</div>'}</div>
+    <div class="card sec list"><h3>菜單與價格</h3>${menus || '<div class="muted">這次沒有抓到菜單價格（官網菜單多半是圖片）</div>'}</div>
+    <div class="card sec list"><h3>Google 地圖評分（主場縣市）</h3>${mp || '<div class="muted">這次沒有地圖資料</div>'}</div>
+    <div class="card sec list"><h3>Meta 廣告投放</h3>${ad || '<div class="muted">這次沒有廣告資料</div>'}</div>
+    <div class="card sec"><h3>和上次調查比</h3>${chg}</div>
+    ${learned ? `<div class="card sec"><h3>這次爬蟲自己學到的翻頁方式</h3><ul>${learned}</ul></div>` : ""}`;
+}
 function exportCase(id) {
   const s = C.sum[id]; if (!s || s.error) return;
   const wb = XLSX.utils.book_new(), add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: "沒有資料" }]), n);
+  add("品牌vs競品", (s.compare || []).map(r => ({ 品牌: r.brand, 官網: r.url, 官網門市: r.stores, 主場門市: r.stores_home, 價格中位數: r.price?.median, 價格P25: r.price?.p25, 價格P75: r.price?.p75, 品項數: r.price?.items, 價格來源: r.price_source, 聲量: r.mentions, 負面比例: r.neg_share, 主要議題: Object.entries(r.issues || {}).slice(0, 5).map(x => x.join(" ")).join("、"), 搜尋熱度: r.trend_avg, 搜尋熱度季變化: r.trend_change, 地圖評分: r.map_rating, 地圖評論數: r.map_reviews, IG平均讚: r.ig_avg_likes, IG月發文: r.ig_per_30d, FB平均互動: r.fb_avg_reactions, FB月發文: r.fb_per_30d, Meta廣告: r.ads_own, 投放中: r.ads_active })));
+  add("菜單價格", Object.entries(s.competitor_menus || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, 品項: x.name, 價格: x.price, 最高價: x.price_max }))));
+  add("競品門市", Object.entries(s.competitor_stores || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, ...x }))));
+  add("地圖評分", Object.entries(s.maps || {}).flatMap(([b, m]) => (m?.rows || []).map(x => ({ 品牌: b, ...x }))));
   add("官網門市", s.official?.stores || []); add("官方消息", s.official?.news || []);
   add("搜尋重點", Object.entries(s.search || {}).flatMap(([tag, xs]) => xs.map(x => ({ 面向: tag, ...x }))));
   add("新聞", s.news || []); add("PTT", s.ptt || []); add("公司登記", s.registry || []);
