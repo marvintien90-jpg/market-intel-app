@@ -360,6 +360,69 @@ function trendSvg(t) {
     <text x="${P}" y="${H - 6}" font-size="11" fill="var(--sub)">${esc(first)}</text><text x="${W - P}" y="${H - 6}" font-size="11" fill="var(--sub)" text-anchor="end">${esc(last)}</text></svg>
     <div class="muted" style="display:flex;gap:14px;flex-wrap:wrap">${ks.map((k, j) => `<span><b style="color:${BC[j]}">━</b> ${esc(k)}</span>`).join("")}</div>`;
 }
+function bucket(d, g) {
+  const y = +d.slice(0, 4), m = +d.slice(5, 7);
+  if (g === "年") return String(y);
+  if (g === "半年") return y + (m <= 6 ? " 上半年" : " 下半年");
+  if (g === "季") return y + " Q" + Math.ceil(m / 3);
+  if (g === "月") return d.slice(0, 7);
+  const t = new Date(d + "T00:00:00Z"), wd = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - wd);
+  return t.toISOString().slice(0, 10) + " 週";
+}
+const TG_LIMIT = { "年": 6, "半年": 10, "季": 12, "月": 24, "週": 26 };
+function timelineBlock(s, tbl, link) {
+  const tl = s.timeline; if (!tl || !(tl.rows || []).length) return "";
+  const kinds = Object.keys(tl.kinds || {}).filter(k => tl.rows.some(r => r.k === k));
+  const g = C.tg || "季", k = kinds.includes(C.tk) ? C.tk : kinds[0], mode = (tl.kinds || {})[k];
+  const names = [s.brand, ...(s.competitors || []).slice(0, 4)];
+  const agg = {};
+  for (const r of tl.rows) { if (r.k !== k) continue; const p = bucket(r.d, g), a = ((agg[p] ||= {})[r.b] ||= { n: 0, x: 0, neg: 0 }); a.n += r.n; a.x += r.x; a.neg += r.neg; }
+  const periods = Object.keys(agg).sort().reverse().slice(0, TG_LIMIT[g]);
+  const val = a => !a ? null : mode === "avg" ? (a.n ? a.x / a.n : null) : mode === "sum" ? a.x : a.n;
+  const fmt = (a) => { const v = val(a); if (v == null) return "—"; const t = mode === "sum" && k === "月營收" ? num(v / 1000, 1) + " 百萬" : num(v, mode === "avg" ? 1 : 0); return t + (a.neg ? ` <span style="color:var(--red)">負 ${a.neg}</span>` : ""); };
+  const used = names.filter(n => periods.some(p => agg[p][n]));
+  const table = tbl([["p", g, "", r => `<span style="white-space:nowrap">${esc(r.p)}</span>`], ...used.map(n => [n, n, "num", r => fmt(agg[r.p][n])])], periods.map(p => ({ p })));
+  const asc = periods.slice().reverse(), mx = Math.max(1, ...asc.flatMap(p => used.map(n => val(agg[p][n]) || 0)));
+  const W = 640, H = 170, P = 26, x = i => P + i * (W - 2 * P) / Math.max(1, asc.length - 1), y = v => H - P - v * (H - 2 * P) / mx;
+  const chart = asc.length > 1 ? `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(k)}"><line x1="${P}" y1="${H - P}" x2="${W - P}" y2="${H - P}" stroke="var(--line)"/>${used.map(n => `<polyline fill="none" stroke="${BC[names.indexOf(n)]}" stroke-width="2" points="${asc.map((p, i) => x(i).toFixed(1) + "," + y(val(agg[p][n]) || 0).toFixed(1)).join(" ")}"/>`).join("")}<text x="${P}" y="${H - 6}" font-size="11" fill="var(--sub)">${esc(asc[0])}</text><text x="${W - P}" y="${H - 6}" font-size="11" fill="var(--sub)" text-anchor="end">${esc(asc.at(-1))}</text></svg><div class="muted" style="display:flex;gap:14px;flex-wrap:wrap">${used.map(n => `<span><b style="color:${BC[names.indexOf(n)]}">━</b> ${esc(n)}</span>`).join("")}</div>` : "";
+  const sm = Object.entries(tl.samples || {}).filter(([key]) => key.split("|")[1] === k).sort((a, b) => b[0].split("|")[2].localeCompare(a[0].split("|")[2])).slice(0, 40);
+  const samples = sm.length ? `<details><summary>看原始資料樣本（每品牌每月最多 3 則）</summary>${sm.map(([key, xs]) => `<div class="it"><b>${esc(key.split("|")[0])}・${esc(key.split("|")[2])}</b>${xs.map(x => `<div>${link(x.u, x.t)} <span class="muted">${esc(x.d)}</span></div>`).join("")}</div>`).join("")}</details>` : "";
+  const note = { count: "筆數", avg: "平均值（搜尋熱度 0–100、每則貼文互動數）", sum: "加總" }[mode] || "";
+  const sel = (name, opts, cur) => `<select data-${name}>${opts.map(o => `<option${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+  return `<div class="card sec"><h3>時間軸：年／半年／季／月／週</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">${sel("tg", ["年", "半年", "季", "月", "週"], g)}${sel("tk", kinds, k)}</div>
+    ${chart}${table}<p class="muted">數值是${note}。資料期間 ${esc(tl.from || "")} 到 ${esc(tl.to || "")}；新聞回溯近 8 季（每季最多 100 則，達上限代表至少這麼多）、搜尋熱度近 5 年、上市櫃營收近 24 個月，社群貼文與廣告只含最近抓到的那批。</p>${samples}</div>`;
+}
+function backgroundBlock(s, tbl, link) {
+  const bg = s.background; if (!bg) return "";
+  const money = v => v == null ? "—" : num(v / 10000) + " 萬";
+  const pp = t => esc(t || "").replace(/\n/g, "<br>");
+  const blocks = Object.entries(bg).map(([b, v]) => {
+    const co = v.company || {}, rn = v.risk_news || {}, px = v.perplexity || {};
+    const comp = co.error ? `<div class="muted">${esc(co.error)}</div>` : `<div class="kv"><span>公司</span><b>${link(co.source, co.name)}（${esc(co.id || "")}）</b><span>狀態</span><b>${esc(co.status || "")}${co.case_status ? "・" + esc(co.case_status) : ""}</b><span>資本額／實收</span><b>${money(co.capital)}／${money(co.paid_in)}</b><span>設立／最近變更</span><b>${esc(co.setup || "—")}／${esc(co.changed || "—")}</b><span>負責人</span><b>${esc(co.owner || "")}</b><span>地址</span><b>${esc(co.address || "")}</b><span>分公司</span><b>${co.has_branch == null ? "—" : co.has_branch ? "有" : "無"}</b><span>法人股東</span><b>${esc((co.juristic_shareholders || []).join("、") || "無")}</b></div>
+      ${(co.directors || []).length ? `<details><summary>董監事 ${co.directors.length} 位</summary>${tbl([["title", "職稱"], ["name", "姓名"], ["for", "代表法人"], ["shares", "持股", "num", r => num(r.shares)]], co.directors)}</details>` : ""}
+      ${(co.related || []).length ? `<details><summary>同負責人的其他公司 ${co.related.length} 家</summary>${tbl([["name", "公司"], ["id", "統編"], ["status", "狀態"]], co.related)}<p class="muted">${esc(co.related_note || "")}</p></details>` : ""}`;
+    const risks = Object.entries(rn).map(([cat, r]) => r.error ? "" : `<details><summary>${esc(cat)}：${num(r.n)} 則</summary>${(r.items || []).map(x => `<div class="it">${link(x.url, x.title)} <span class="muted">${esc(x.source || "")} ${esc(String(x.date || "").slice(5, 16))}</span></div>`).join("") || '<div class="muted">查無</div>'}</details>`).join("");
+    const cites = (px.citations || []).map((u, i) => `<div class="muted">[${i + 1}] ${link(u)}</div>`).join("");
+    const ptxt = px.error ? `<div class="muted">${esc(px.error)}</div>` : `<div style="line-height:1.7">${pp(px.text)}</div><details><summary>來源 ${num((px.citations || []).length)} 個</summary>${cites}</details>`;
+    return `<details${b === s.brand ? " open" : ""}><summary><b>${esc(b)}</b>${co.name ? "：" + esc(co.name) : ""}</summary><div style="padding:8px 0">${comp}
+      <h4 style="margin:12px 0 4px">風險與動向新聞</h4>${risks || '<div class="muted">沒有資料</div>'}
+      <h4 style="margin:12px 0 4px">沿革、經營團隊與重大事件（Perplexity 整理，信心 B，請點來源確認）</h4>${ptxt}</div></details>`;
+  }).join("");
+  return `<div class="card sec list"><h3>背景調查</h3>${blocks}<p class="muted">公司、董監事、分公司來自經濟部商工登記公開資料（信心 A）；風險新聞是 Google 新聞依關鍵字找、標題要含品牌名才列（信心 B，需點開確認是否同一家）。</p></div>`;
+}
+function historyBlock(s, tbl) {
+  const sn = s.snapshots; if (!sn || sn.error) return "";
+  const rows = Object.entries(sn).flatMap(([b, xs]) => (xs || []).map(x => ({ b, ...x })));
+  const multi = Object.values(sn).some(xs => (xs || []).length > 1);
+  return `<div class="card sec"><h3>歷次調查快照</h3>${multi ? "" : '<p class="muted">目前每個品牌只有這一次的快照；之後每查一次就多一列，可以看門市數、評分、價格、聲量怎麼變。</p>'}${tbl([["b", "品牌"], ["date", "日期"], ["stores", "門市", "num", r => num(r.stores)], ["price_median", "價格中位數", "num", r => num(r.price_median)], ["map_rating", "地圖評分", "num", r => num(r.map_rating, 2)], ["mentions", "聲量", "num", r => num(r.mentions)], ["neg_share", "負面", "num", r => r.neg_share == null ? "—" : Math.round(r.neg_share * 100) + "%"], ["ig_followers", "IG 粉絲", "num", r => num(r.ig_followers)], ["revenue_k", "月營收（千元）", "num", r => num(r.revenue_k)]], rows.sort((a, b) => a.b.localeCompare(b.b) || b.date.localeCompare(a.date)))}</div>`;
+}
+function listedBlock(s, tbl) {
+  const lh = s.listed_history; if (!lh) return "";
+  const names = Object.keys(lh).filter(n => (lh[n] || []).length); if (!names.length) return "";
+  const yms = [...new Set(names.flatMap(n => lh[n].map(x => x.ym)))].sort().reverse();
+  return `<div class="card sec"><h3>上市櫃月營收（近 24 個月）</h3>${tbl([["ym", "月份"], ...names.flatMap(n => [[n, n + " 營收（百萬）", "num", r => { const x = lh[n].find(v => v.ym === r.ym); return x ? num(x.revenue_k / 1000, 1) : "—"; }], [n + "y", "年增", "num", r => { const x = lh[n].find(v => v.ym === r.ym); return x && x.yoy_pct != null ? num(x.yoy_pct, 1) + "%" : "—"; }]])], yms.map(ym => ({ ym })))}<p class="muted">來源：公開資訊觀測站每月營收彙總（信心 A）。</p></div>`;
+}
 function intelBlocks(s, tbl, link) {
   const cmp = s.compare || []; if (!cmp.length) return "";
   const pct = v => v == null ? "—" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%";
@@ -375,6 +438,9 @@ function intelBlocks(s, tbl, link) {
     ["ig", "IG 平均讚／月發文", "num", r => r.ig_avg_likes == null ? "—" : num(r.ig_avg_likes) + "／" + num(r.ig_per_30d, 1)],
     ["fb", "FB 平均互動／月發文", "num", r => r.fb_avg_reactions == null ? "—" : num(r.fb_avg_reactions) + "／" + num(r.fb_per_30d, 1)],
     ["ads", "Meta 廣告（投放中）", "num", r => r.ads_own == null ? "—" : num(r.ads_own) + "（" + num(r.ads_active) + "）"],
+    ["company", "公司資本額／設立", "num", r => r.company ? num((r.company.capital || 0) / 10000) + " 萬／" + esc((r.company.setup || "").slice(0, 4)) : "—"],
+    ["risk", "風險新聞（食安／勞動／裁罰／訴訟／加盟）", "num", r => r.risk && Object.keys(r.risk).length ? ["食安衛生", "勞動", "裁罰", "訴訟", "加盟糾紛"].map(k => num(r.risk[k] || 0)).join("／") : "—"],
+    ["news_8q", "近 8 季新聞量", "num", r => num(r.news_8q)],
     ["listed", "上市櫃月營收（年增）", "num", r => r.listed ? `${esc(r.listed.code)}・${esc(r.listed.month)}：${num((r.listed.revenue_k || 0) / 1000, 1)} 百萬（${r.listed.yoy_pct == null ? "—" : num(r.listed.yoy_pct, 1) + "%"}）` : "—"],
   ], rows);
   const counties = [...new Set(cmp.flatMap(r => (r.county_top || []).map(x => x[0])))].slice(0, 8);
@@ -392,7 +458,11 @@ function intelBlocks(s, tbl, link) {
   const learned = (s.official?.learned || []).map(l => `<li>${esc(l.learned)}${l.key ? "：參數 " + esc(l.key) : ""}${l.options ? "（" + l.options + " 個選項）" : ""}${l.clicks ? "（點了 " + l.clicks + " 次）" : ""}${l.new_records != null ? "，多抓到 " + l.new_records + " 筆" : ""}</li>`).join("");
   const rel = s.related && !s.related.error ? ["top", "rising"].filter(k => s.related[k]).map(k => `<div><b>${k === "top" ? "最常一起搜" : "正在竄升"}</b>：${s.related[k].map(x => esc(x.q)).join("、")}</div>`).join("") : "";
   return `<div class="card sec"><h3>品牌 vs 競品總表</h3>${main}<p class="muted">價格與門市來自官網（官網抓不到時用網路菜單整理頁，信心 C）；聲量與負面比例由新聞、PTT 標題分類；搜尋熱度是同一把尺的相對值（0–100）。</p></div>
-    <div class="card sec"><h3>搜尋熱度（近 12 個月）</h3>${trendSvg(s.trends)}${rel ? `<div style="margin-top:8px">${rel}</div>` : ""}</div>
+    ${timelineBlock(s, tbl, link)}
+    ${backgroundBlock(s, tbl, link)}
+    ${listedBlock(s, tbl)}
+    ${historyBlock(s, tbl)}
+    <div class="card sec"><h3>搜尋熱度（近 5 年，每週）</h3>${trendSvg(s.trends)}${rel ? `<div style="margin-top:8px">${rel}</div>` : ""}</div>
     <div class="card sec"><h3>門市縣市分布</h3>${dist}</div>
     <div class="card sec list"><h3>輿情議題（點開看負面標題）</h3>${iss || '<div class="muted">沒有資料</div>'}</div>
     <div class="card sec list"><h3>菜單與價格</h3>${menus || '<div class="muted">這次沒有抓到菜單價格（官網菜單多半是圖片）</div>'}</div>
@@ -408,6 +478,11 @@ function exportCase(id) {
   add("菜單價格", Object.entries(s.competitor_menus || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, 品項: x.name, 價格: x.price, 最高價: x.price_max }))));
   add("競品門市", Object.entries(s.competitor_stores || {}).flatMap(([b, xs]) => xs.map(x => ({ 品牌: b, ...x }))));
   add("地圖評分", Object.entries(s.maps || {}).flatMap(([b, m]) => (m?.rows || []).map(x => ({ 品牌: b, ...x }))));
+  add("時間軸", (s.timeline?.rows || []).map(r => ({ 日期: r.d, 品牌: r.b, 類別: r.k, 筆數: r.n, 數值: r.x, 負面: r.neg })));
+  add("背景調查", Object.entries(s.background || {}).map(([b, v]) => ({ 品牌: b, 公司: v.company?.name, 統編: v.company?.id, 資本額: v.company?.capital, 設立: v.company?.setup, 負責人: v.company?.owner, 法人股東: (v.company?.juristic_shareholders || []).join("、"), ...Object.fromEntries(Object.entries(v.risk_news || {}).map(([k, r]) => [k + "新聞", r.n])), Perplexity整理: v.perplexity?.text, 來源: (v.perplexity?.citations || []).join(" ") })));
+  add("董監事", Object.entries(s.background || {}).flatMap(([b, v]) => (v.company?.directors || []).map(x => ({ 品牌: b, ...x }))));
+  add("歷次快照", Object.entries(s.snapshots || {}).flatMap(([b, xs]) => Array.isArray(xs) ? xs.map(x => ({ 品牌: b, ...x })) : []));
+  add("上市櫃月營收", Object.entries(s.listed_history || {}).flatMap(([b, xs]) => (xs || []).map(x => ({ 品牌: b, ...x }))));
   add("官網門市", s.official?.stores || []); add("官方消息", s.official?.news || []);
   add("搜尋重點", Object.entries(s.search || {}).flatMap(([tag, xs]) => xs.map(x => ({ 面向: tag, ...x }))));
   add("新聞", s.news || []); add("PTT", s.ptt || []); add("公司登記", s.registry || []);
@@ -430,7 +505,7 @@ document.addEventListener("click", e => {
   else if (t.dataset.xlsx) exportX(t.dataset.xlsx);
   else if (t.dataset.sort) { const k = t.dataset.sort; S.f.dir = S.f.sort === k ? -S.f.dir : 1; S.f.sort = k; render(); }
 });
-document.addEventListener("change", e => { const k = e.target.dataset?.f; if (k && k !== "q") { S.f[k] = e.target.value; render(); } });
+document.addEventListener("change", e => { if (e.target.matches("[data-tg]")) { C.tg = e.target.value; render(); return; } if (e.target.matches("[data-tk]")) { C.tk = e.target.value; render(); return; } const k = e.target.dataset?.f; if (k && k !== "q") { S.f[k] = e.target.value; render(); } });
 let qt; document.addEventListener("input", e => { if (e.target.dataset?.f === "q") { S.f.q = e.target.value; clearTimeout(qt); qt = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('[data-f="q"]'); if (i) { i.focus(); i.setSelectionRange(pos, pos); } }, 250); } });
 document.addEventListener("input", e => { const f = e.target.closest("#cf"); if (f && e.target.name) C.draft[e.target.name] = e.target.value; });
 document.addEventListener("submit", async e => {
