@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>市調中樞</title>
+<meta name="description" content="多品牌市調系統：門市、評價、警示、查證與匯出">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="市調中樞">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2433;--sub:#5b6476;--line:#e3e6ec;--acc:#0f766e;--acc2:#e6f4f2;--red:#c0392b;--redbg:#fdecea;--yel:#9a6a00;--yelbg:#fff6dc;--ok:#1e7d4f;--okbg:#e5f5ec;
+ --b1:#0f766e;--b2:#c2410c;--b3:#4f46e5;--b4:#be185d;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151c;--card:#1a2029;--ink:#e8ebf0;--sub:#9aa3b2;--line:#2b3340;--acc:#2dd4bf;--acc2:#163a37;--red:#ff7b6b;--redbg:#3a1e1b;--yel:#f2c14e;--yelbg:#3a3118;--ok:#5ad19a;--okbg:#17352a;--b1:#2dd4bf;--b2:#fb923c;--b3:#818cf8;--b4:#f472b6;}}
+:root[data-theme="dark"]{--bg:#11151c;--card:#1a2029;--ink:#e8ebf0;--sub:#9aa3b2;--line:#2b3340;--acc:#2dd4bf;--acc2:#163a37;--red:#ff7b6b;--redbg:#3a1e1b;--yel:#f2c14e;--yelbg:#3a3118;--ok:#5ad19a;--okbg:#17352a;--b1:#2dd4bf;--b2:#fb923c;--b3:#818cf8;--b4:#f472b6;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;-webkit-text-size-adjust:100%}
+a{color:var(--acc)}
+button,select,input{font:inherit;color:inherit}
+.app{display:flex;min-height:100vh}
+#side{width:220px;flex:none;background:var(--card);border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh}
+#side h1{font-size:18px;margin:4px 8px 18px}
+#side h1 small{display:block;font-size:12px;color:var(--sub);font-weight:400}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--sub)}
+.nav button.on{background:var(--acc2);color:var(--acc);font-weight:600}
+.nav .n{margin-left:auto;font-size:12px;background:var(--redbg);color:var(--red);border-radius:10px;padding:0 7px}
+#main{flex:1;min-width:0;padding:22px 26px 90px}
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.top h2{margin:0;font-size:22px;flex:1;min-width:160px}
+.muted{color:var(--sub);font-size:13px}
+.grid{display:grid;gap:14px;align-items:start}
+.g4{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h3{margin:0 0 10px;font-size:16px}
+.brand-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.kv{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:14px}
+.kv span:nth-child(odd){color:var(--sub)}
+.kv b{font-variant-numeric:tabular-nums;text-align:right}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;background:var(--acc2);color:var(--acc);white-space:nowrap}
+.chip.r{background:var(--redbg);color:var(--red)}.chip.y{background:var(--yelbg);color:var(--yel)}.chip.g{background:var(--okbg);color:var(--ok)}.chip.n{background:var(--line);color:var(--sub)}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600}
+.btn.s{background:var(--card);color:var(--ink);border:1px solid var(--line);font-weight:500}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.bar select,.bar input{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 10px;min-width:0}
+.bar input{flex:1;min-width:140px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:var(--card);color:var(--sub);font-weight:600;font-size:13px;cursor:pointer;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+#map{height:380px;border-radius:12px;border:1px solid var(--line);margin-bottom:12px;z-index:0}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.alert:last-child{border-bottom:0}
+.list .it{padding:10px 0;border-bottom:1px solid var(--line)}.list .it:last-child{border-bottom:0}
+.sec{margin-top:18px}
+.empty{padding:30px;text-align:center;color:var(--sub)}
+.login{max-width:380px;margin:12vh auto;padding:0 16px}
+.login .card{padding:24px}
+.login input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);margin:6px 0 12px}
+.err{background:var(--redbg);color:var(--red);padding:10px 12px;border-radius:10px;margin:10px 0;font-size:14px}
+.bars .row{display:grid;grid-template-columns:72px 1fr 64px;gap:8px;align-items:center;font-size:13px;margin:5px 0}
+.bars .track{height:10px;background:var(--line);border-radius:6px;overflow:hidden}
+.bars .fill{height:100%;border-radius:6px}
+#tabbar{display:none}
+@media (max-width:820px){
+ #side{display:none}
+ #main{padding:16px 16px calc(84px + env(safe-area-inset-bottom))}
+ #tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:10}
+ #tabbar button{flex:1;background:none;border:0;padding:6px 2px;font-size:11px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px;position:relative}
+ #tabbar button.on{color:var(--acc);font-weight:600}
+ #tabbar .ic{font-size:18px;line-height:1}
+ #tabbar .n{position:absolute;top:0;right:22%;font-size:10px;background:var(--red);color:#fff;border-radius:8px;padding:0 5px}
+ #map{height:300px}
+ .top h2{font-size:20px;min-width:0}
+ .top .btn{padding:6px 10px;font-size:13px}
+ .hide-m{display:none}
+}
+</style>
+</head>
+<body>
+<div id="root"><div class="empty">載入中…</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+const SB_URL = "https://thxqncpkkzmpktwuvzvz.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoeHFuY3Bra3ptcGt0d3V2enZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0MTMyODcsImV4cCI6MjEwNjk4OTI4N30.cDjeuOxx2UZLrOWYcNhqy4dO2cdznscJ7CWr0DZGZ2g";
+const REPO = "https://github.com/marvintien90-jpg/market-intel";
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
+const BCOL = ["var(--b1)", "var(--b2)", "var(--b3)", "var(--b4)"];
+const PAGES = [
+  ["home", "總覽", "◎"], ["stores", "門市", "⌖"], ["alerts", "警示", "!"],
+  ["verify", "查證", "✓"], ["news", "動態", "≡"], ["export", "匯出", "⇩"]];
+const MET = {
+  stores_official: ["官網門市", "家"], stores_operational: ["地圖營業", "家"], map_coverage: ["地圖覆蓋", "%"],
+  rating_weighted_strict: ["加權評分", "星"], reviews_per_store: ["每店評論", "則"], ticket_est: ["估計客單", "元"],
+  entry_ticket: ["入門價", "元"], jobs_104: ["104 職缺", "個"], hiring_entities: ["徵才公司", "家"],
+  search_share_52w: ["搜尋聲量占比", "%"], search_yoy_13w: ["近13週搜尋年增", "%"], revenue_decline_streak: ["營收連續年減", "月"]};
+let S = { user: null, data: null, page: "home", err: "", busy: false, f: { brand: "", status: "operational", q: "", sort: "brand", dir: 1 } };
+let map = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = s => document.querySelector(s);
+const num = (v, d = 0) => v == null || isNaN(v) ? "—" : Number(v).toLocaleString("zh-TW", { maximumFractionDigits: d, minimumFractionDigits: d });
+const fmt = (m, v) => {
+  if (v == null) return "—";
+  const u = (MET[m] || [, ""])[1];
+  if (u === "%") return (v > 0 && m.includes("yoy") ? "+" : "") + num(v * 100, 1) + "%";
+  if (u === "星") return num(v, 2);
+  return num(v) + " " + u;
+};
+const county = a => { const m = String(a || "").replace(/^\d+/, "").match(/^(.{2}[市縣])/); return m ? m[1].replace("台", "臺") : "—"; };
+const stLab = s => ({ operational: ["營業中", "g"], temporarily_closed: ["暫停營業", "y"], permanently_closed: ["已歇業", "r"] }[s] || [s || "—", "n"]);
+const gradeChip = g => { const k = String(g || "")[0]; return `<span class="chip ${k === "A" ? "g" : k === "B" ? "" : k === "C" ? "y" : "r"}">${esc(g || "—")}</span>`; };
+
+function brands() { return (S.data?.brands || []).map(b => b.name); }
+function bcol(name) { const i = brands().indexOf(name); return BCOL[(i < 0 ? 0 : i) % 4]; }
+function bobs(brand, metric) { return S.data.obs.find(o => o.kind === "brand" && o.ref === brand && o.metric === metric)?.value ?? null; }
+function sobs(id, metric) { return S.data.obs.find(o => o.kind === "store" && o.ref === id && o.metric === metric)?.value ?? null; }
+
+function storeRows() {
+  return S.data.stores.map(s => ({ ...s, county: county(s.address), rating: sobs(s.id, "rating"), reviews: sobs(s.id, "review_count"),
+    recent: sobs(s.id, "review_recent_avg"), low: sobs(s.id, "review_low_share") }));
+}
+
+function alerts() {
+  const out = [];
+  for (const s of storeRows()) {
+    if (s.recent != null && s.rating != null && s.rating - s.recent >= 0.15)
+      out.push({ lv: s.rating - s.recent >= 0.5 ? "r" : "y", brand: s.brand, title: `${s.name}：近期評分下滑`, body: `最新 60 則平均 ${num(s.recent, 2)}，累計 ${num(s.rating, 1)}（差 ${num(s.rating - s.recent, 2)}）`, kind: "評論" });
+    if (s.low != null && s.low >= 0.1)
+      out.push({ lv: s.low >= 0.2 ? "r" : "y", brand: s.brand, title: `${s.name}：1–2 星偏多`, body: `最新 60 則中 1–2 星占 ${num(s.low * 100, 0)}%`, kind: "評論" });
+    if (s.status === "temporarily_closed") out.push({ lv: "y", brand: s.brand, title: `${s.name}：地圖顯示暫停營業`, body: s.address, kind: "門市" });
+  }
+  for (const b of brands()) {
+    const y = bobs(b, "search_yoy_13w"); if (y != null && y <= -0.25) out.push({ lv: "y", brand: b, title: `${b}：搜尋聲量年減 ${num(-y * 100, 0)}%`, body: "近 13 週 vs 去年同期", kind: "聲量" });
+    const r = bobs(b, "revenue_decline_streak"); if (r) out.push({ lv: "r", brand: b, title: `${b}：營收連續 ${num(r)} 個月年減`, body: "公開資訊觀測站月營收", kind: "財務" });
+  }
+  for (const c of S.data.conflicts.filter(c => c.status === "open"))
+    out.push({ lv: "n", brand: c.brand, title: `${c.brand}：${c.topic}（待查）`, body: c.verdict, kind: "矛盾" });
+  const w = { r: 0, y: 1, n: 2 };
+  return out.sort((a, b) => w[a.lv] - w[b.lv]);
+}
+
+async function load() {
+  S.busy = true; S.err = ""; render();
+  const { data, error } = await sb.rpc("mi_dashboard");
+  S.busy = false;
+  if (error) { S.err = /尚未開通/.test(error.message) ? "這個帳號還沒開通市調系統，請聯絡管理員開通。" : /登入/.test(error.message) ? "登入已過期，請重新登入。" : "讀取資料失敗：" + error.message + "。請稍後按「重新整理」。"; S.data = null; }
+  else S.data = data;
+  render();
+}
+
+function render() {
+  const root = $("#root");
+  if (!S.user) { root.innerHTML = loginHtml(); return; }
+  if (!S.data) { root.innerHTML = `<div class="login"><div class="card"><h3>市調中樞</h3>${S.busy ? '<p class="muted">讀取資料中…</p>' : ""}${S.err ? `<div class="err">${esc(S.err)}</div>` : ""}<div class="bar"><button class="btn" data-reload>重新整理</button><button class="btn s" data-logout>登出</button></div><p class="muted">${esc(S.user.email)}</p></div></div>`; return; }
+  const al = alerts().filter(a => a.lv !== "n").length;
+  const nav = PAGES.map(([id, lab, ic]) => `<button data-go="${id}" class="${S.page === id ? "on" : ""}"><span class="ic">${ic}</span>${lab}${id === "alerts" && al ? `<span class="n">${al}</span>` : ""}</button>`).join("");
+  root.innerHTML = `<div class="app"><aside id="side"><h1>市調中樞<small>多品牌市調系統</small></h1><div class="nav">${nav}</div>
+    <div style="position:absolute;bottom:16px;left:12px;right:12px" class="muted">${esc(S.user.email)}<br><a href="#" data-logout>登出</a></div></aside>
+    <main id="main">${(VIEWS[S.page] || VIEWS.home)()}</main><nav id="tabbar">${nav}</nav></div>`;
+  if (S.page === "stores") drawMap();
+}
+
+function loginHtml() {
+  return `<div class="login"><div class="card"><h3 style="font-size:20px;margin:0 0 4px">市調中樞</h3><p class="muted" style="margin:0 0 16px">用 BOM 運算中心同一組帳號登入</p>
+  <form id="lf"><label class="muted">電子郵件</label><input id="em" type="email" autocomplete="username" required value="${esc(S.email || "")}">
+  <label class="muted">密碼</label><input id="pw" type="password" autocomplete="current-password" required>
+  ${S.err ? `<div class="err">${esc(S.err)}</div>` : ""}<button class="btn" style="width:100%;padding:11px" ${S.busy ? "disabled" : ""}>${S.busy ? "登入中…" : "登入"}</button></form></div></div>`;
+}
+
+const head = (t, extra = "") => `<div class="top"><h2>${t}</h2>${extra}<button class="btn s" data-reload title="重新讀取最新資料">重新整理</button></div>`;
+
+const VIEWS = {
+  home() {
+    const d = S.data, list = alerts();
+    const cards = brands().map(b => `<div class="card"><div class="brand-h"><span class="dot" style="background:${bcol(b)}"></span><h3 style="margin:0">${esc(b)}</h3></div>
+      <div class="kv">${["stores_official", "rating_weighted_strict", "reviews_per_store", "ticket_est", "jobs_104", "search_yoy_13w"].map(m => `<span>${MET[m][0]}</span><b>${fmt(m, bobs(b, m))}</b>`).join("")}</div></div>`).join("");
+    const maxShare = Math.max(...brands().map(b => bobs(b, "search_share_52w") || 0), 0.01);
+    const share = brands().map(b => { const v = bobs(b, "search_share_52w") || 0; return `<div class="row"><span>${esc(b)}</span><div class="track"><div class="fill" style="width:${v / maxShare * 100}%;background:${bcol(b)}"></div></div><b style="text-align:right">${num(v * 100, 1)}%</b></div>`; }).join("");
+    const rat = brands().map(b => { const v = bobs(b, "rating_weighted_strict") || 0; return `<div class="row"><span>${esc(b)}</span><div class="track"><div class="fill" style="width:${Math.max(0, (v - 4) / 1 * 100)}%;background:${bcol(b)}"></div></div><b style="text-align:right">${num(v, 2)}</b></div>`; }).join("");
+    return head("總覽") + `<p class="muted" style="margin-top:-8px">資料更新：${esc(String(d.generated_at).slice(0, 10))}・門市 ${d.stores.length} 家・查證 ${d.verifications.length} 筆</p>
+      <div class="grid g4">${cards}</div>
+      <div class="grid g4 sec"><div class="card bars"><h3>搜尋聲量占比（52 週）</h3>${share}</div><div class="card bars"><h3>加權評分（4.0 起算）</h3>${rat}</div>
+      <div class="card"><h3>最新警示</h3>${list.slice(0, 4).map(alertHtml).join("") || '<div class="muted">目前沒有警示</div>'}<p style="margin:8px 0 0"><a href="#" data-go="alerts">看全部 ${list.length} 則 →</a></p></div></div>`;
+  },
+  stores() {
+    const f = S.f, q = f.q.trim().toLowerCase();
+    let rows = storeRows().filter(r => (!f.brand || r.brand === f.brand) && (!f.status || r.status === f.status) && (!q || (r.name + r.address).toLowerCase().includes(q)));
+    const k = f.sort, dir = f.dir;
+    rows.sort((a, b) => { const x = a[k], y = b[k]; if (x == null) return 1; if (y == null) return -1; return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "zh-Hant")) * dir; });
+    S.rows = rows;
+    const th = (key, lab, cls = "") => `<th data-sort="${key}" class="${cls}">${lab}${f.sort === key ? (dir > 0 ? " ↑" : " ↓") : ""}</th>`;
+    const opt = (v, l, cur) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`;
+    return head("門市", `<button class="btn s" data-xlsx="stores">匯出這張表</button>`) + `<div class="bar">
+      <select data-f="brand">${opt("", "全部品牌", f.brand)}${brands().map(b => opt(b, b, f.brand)).join("")}</select>
+      <select data-f="status">${opt("", "全部狀態", f.status)}${opt("operational", "營業中", f.status)}${opt("temporarily_closed", "暫停營業", f.status)}${opt("permanently_closed", "已歇業", f.status)}</select>
+      <input data-f="q" placeholder="搜尋店名或地址" value="${esc(f.q)}"></div>
+      <div id="map"></div><p class="muted">共 ${rows.length} 家${rows.some(r => r.lat == null) ? `，其中 ${rows.filter(r => r.lat == null).length} 家沒有座標不會出現在地圖上` : ""}。點欄位標題可排序。</p>
+      <div class="tw"><table><thead><tr>${th("brand", "品牌", "hide-m")}${th("name", "門市")}${th("county", "縣市", "hide-m")}${th("status", "狀態")}${th("rating", "評分", "num")}${th("reviews", "評論數", "num hide-m")}${th("recent", "近 60 則", "num")}</tr></thead><tbody>
+      ${rows.map(r => { const [sl, sc] = stLab(r.status); const down = r.recent != null && r.rating != null && r.rating - r.recent >= 0.15;
+        return `<tr><td class="hide-m"><span class="dot" style="display:inline-block;background:${bcol(r.brand)}"></span> ${esc(r.brand)}</td><td><span class="dot" style="display:inline-block;background:${bcol(r.brand)}"></span> ${esc(r.name)}<div class="muted">${esc(r.address)}</div></td><td class="hide-m">${esc(r.county)}</td><td><span class="chip ${sc}">${sl}</span></td><td class="num">${num(r.rating, 1)}</td><td class="num hide-m">${num(r.reviews)}</td><td class="num">${r.recent == null ? "—" : `<span class="chip ${down ? "r" : "g"}">${num(r.recent, 2)}</span>`}</td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">沒有符合條件的門市</td></tr>`}
+      </tbody></table></div>`;
+  },
+  alerts() {
+    const list = alerts(), by = { r: "紅燈", y: "黃燈", n: "待查" };
+    return head("警示") + `<p class="muted" style="margin-top:-8px">紅燈＝需要馬上看；黃燈＝持續觀察；待查＝資料來源互相矛盾，還沒定論。</p>` +
+      ["r", "y", "n"].map(lv => { const xs = list.filter(a => a.lv === lv); return xs.length ? `<div class="card sec"><h3>${by[lv]}（${xs.length}）</h3>${xs.map(alertHtml).join("")}</div>` : ""; }).join("") || '<div class="empty">目前沒有警示</div>';
+  },
+  verify() {
+    const v = S.data.verifications, c = S.data.conflicts;
+    const vc = x => x === "支持" ? "g" : x === "不支持" ? "r" : "y";
+    return head("查證與矛盾") + `<div class="card"><h3>Perplexity 查證（${v.length}）</h3><div class="list">${v.map(x => `<div class="it"><span class="chip ${vc(x.verdict)}">${esc(x.verdict)}</span> <b>${esc(x.item)}</b><div class="muted">${esc(x.reason)}・${esc(String(x.created_at).slice(0, 10))}</div></div>`).join("") || '<div class="muted">尚無查證紀錄</div>'}</div></div>
+      <div class="card sec"><h3>矛盾表（${c.length}）</h3><div class="list">${c.map(x => `<div class="it"><span class="chip ${x.status === "open" ? "y" : "n"}">${x.status === "open" ? "待查" : "已結案"}</span> <b>${esc(x.brand)}・${esc(x.topic)}</b>
+        <div style="font-size:14px;margin-top:4px"><span class="muted">說法 A：</span>${esc(x.side_a)}<br><span class="muted">說法 B：</span>${esc(x.side_b)}<br><span class="muted">判定：</span>${esc(x.verdict)}</div></div>`).join("")}</div></div>`;
+  },
+  news() {
+    const t = S.data.timeline, e = S.data.evidence, m = S.data.mentions, fb = S.f.brand;
+    const ok = x => !fb || x.brand === fb;
+    const opt = (v, l) => `<option value="${esc(v)}" ${v === fb ? "selected" : ""}>${esc(l)}</option>`;
+    return head("動態與來源") + `<div class="bar"><select data-f="brand">${opt("", "全部品牌")}${brands().map(b => opt(b, b)).join("")}</select></div>
+      <div class="card"><h3>時間軸</h3><div class="list">${t.filter(ok).map(x => `<div class="it"><span class="muted">${esc(x.date)}</span> <span class="chip n">${esc(x.kind)}</span> <b>${esc(x.brand || "")}</b> ${esc(x.title)}</div>`).join("") || '<div class="muted">沒有資料</div>'}</div></div>
+      <div class="card sec"><h3>社群聲量</h3><div class="list">${m.filter(ok).map(x => `<div class="it"><span class="muted">${esc(x.posted_at)}・${esc(x.platform)}</span> <span class="chip ${x.tone === "負面" ? "r" : x.tone === "正面" ? "g" : "n"}">${esc(x.tone)}</span> <b>${esc(x.brand)}</b> ${esc(x.gist)}${x.engagement ? `<span class="muted">（互動 ${num(x.engagement)}）</span>` : ""}${x.url ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener">原文</a>` : ""}</div>`).join("") || '<div class="muted">沒有資料</div>'}</div></div>
+      <div class="card sec"><h3>證據來源（${e.filter(ok).length}）</h3><div class="list">${e.filter(ok).map(x => `<div class="it">${gradeChip(x.level)} <b>${esc(x.title)}</b><div class="muted">${esc(x.brand || "")}・${esc(x.publisher || "")}・${esc(x.date || "日期不明")}${x.url ? ` ・<a href="${esc(x.url)}" target="_blank" rel="noopener">開啟</a>` : ""}</div>${x.claim ? `<div style="font-size:14px">${esc(x.claim)}</div>` : ""}</div>`).join("")}</div></div>`;
+  },
+  export() {
+    return head("匯出") + `<div class="grid g4">
+      <div class="card"><h3>完整 Excel</h3><p class="muted">品牌指標、門市、警示、查證、矛盾、時間軸、證據，一個檔案多個分頁。</p><button class="btn" data-xlsx="all">下載 Excel</button></div>
+      <div class="card"><h3>單一表格</h3><p class="muted">只要某一張表時用。</p><div class="bar">${[["brands", "品牌指標"], ["stores", "門市（目前篩選）"], ["alerts", "警示"], ["verify", "查證"], ["conflicts", "矛盾表"]].map(([k, l]) => `<button class="btn s" data-xlsx="${k}">${l}</button>`).join("")}</div></div>
+      <div class="card"><h3>自動排程</h3><p class="muted">每月 2 日凌晨 3 點自動擷取並查證，資料會自動更新到這裡。</p><a class="btn s" style="display:inline-block;text-decoration:none" href="${REPO}/actions" target="_blank" rel="noopener">查看排程紀錄</a></div></div>`;
+  }
+};
+
+function alertHtml(a) {
+  return `<div class="alert"><span class="chip ${a.lv}">${a.lv === "r" ? "紅" : a.lv === "y" ? "黃" : "查"}</span><div><b>${esc(a.title)}</b><div class="muted">${esc(a.kind)}・${esc(a.body)}</div></div></div>`;
+}
+
+function drawMap() {
+  const el = $("#map"); if (!el || !window.L) return;
+  if (map) { map.remove(); map = null; }
+  map = L.map(el, { scrollWheelZoom: false }).setView([23.7, 120.9], 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+  const css = getComputedStyle(document.documentElement), pts = [];
+  for (const r of S.rows || []) {
+    if (r.lat == null) continue;
+    const c = css.getPropertyValue(["--b1", "--b2", "--b3", "--b4"][brands().indexOf(r.brand) % 4]).trim();
+    L.circleMarker([r.lat, r.lng], { radius: 6, color: c, fillColor: c, fillOpacity: .8, weight: 1 }).addTo(map)
+      .bindPopup(`<b>${esc(r.name)}</b><br>${esc(r.address)}<br>評分 ${num(r.rating, 1)}・${num(r.reviews)} 則`);
+    pts.push([r.lat, r.lng]);
+  }
+  if (pts.length) map.fitBounds(pts, { padding: [20, 20], maxZoom: 13 });
+}
+
+function sheet(kind) {
+  const d = S.data;
+  if (kind === "brands") return brands().map(b => Object.fromEntries([["品牌", b], ...Object.keys(MET).map(m => [MET[m][0] + "（" + MET[m][1] + "）", bobs(b, m)])]));
+  if (kind === "stores") return (S.page === "stores" && S.rows ? S.rows : storeRows()).map(r => ({ 品牌: r.brand, 門市: r.name, 地址: r.address, 縣市: r.county, 狀態: stLab(r.status)[0], 評分: r.rating, 評論數: r.reviews, 近60則平均: r.recent, "近60則1-2星占比": r.low, 緯度: r.lat, 經度: r.lng, 最後確認: r.last_seen }));
+  if (kind === "alerts") return alerts().map(a => ({ 燈號: { r: "紅", y: "黃", n: "待查" }[a.lv], 類別: a.kind, 品牌: a.brand, 警示: a.title, 說明: a.body }));
+  if (kind === "verify") return d.verifications.map(v => ({ 判讀: v.item, 結果: v.verdict, 理由: v.reason, 查證工具: v.model, 日期: String(v.created_at).slice(0, 10) }));
+  if (kind === "conflicts") return d.conflicts.map(c => ({ 品牌: c.brand, 主題: c.topic, 說法A: c.side_a, 說法B: c.side_b, 判定: c.verdict, 狀態: c.status === "open" ? "待查" : "已結案" }));
+  if (kind === "timeline") return d.timeline.map(t => ({ 日期: t.date, 品牌: t.brand, 類別: t.kind, 事件: t.title }));
+  if (kind === "evidence") return d.evidence.map(e => ({ 代碼: e.code, 品牌: e.brand, 標題: e.title, 發布者: e.publisher, 日期: e.date, 可信度: e.level, 重點: e.claim, 網址: e.url }));
+  return [];
+}
+function exportX(kind) {
+  if (!window.XLSX) { S.err = "匯出元件沒有載入，請重新整理頁面再試。"; render(); return; }
+  const NAMES = { brands: "品牌指標", stores: "門市", alerts: "警示", verify: "查證", conflicts: "矛盾表", timeline: "時間軸", evidence: "證據" };
+  const wb = XLSX.utils.book_new(), kinds = kind === "all" ? Object.keys(NAMES) : [kind];
+  for (const k of kinds) { const rows = sheet(k); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ 說明: "沒有資料" }]), NAMES[k]); }
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  XLSX.writeFile(wb, `市調中樞_${kind === "all" ? "完整" : NAMES[kind]}_${day}.xlsx`);
+}
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-go],[data-reload],[data-logout],[data-xlsx],[data-sort]"); if (!t) return;
+  if (t.dataset.go) { e.preventDefault(); S.page = t.dataset.go; try { localStorage.setItem("mi_page", S.page); } catch (_) {} render(); window.scrollTo(0, 0); }
+  else if (t.hasAttribute("data-reload")) load();
+  else if (t.hasAttribute("data-logout")) { e.preventDefault(); sb.auth.signOut(); }
+  else if (t.dataset.xlsx) exportX(t.dataset.xlsx);
+  else if (t.dataset.sort) { const k = t.dataset.sort; S.f.dir = S.f.sort === k ? -S.f.dir : 1; S.f.sort = k; render(); }
+});
+document.addEventListener("change", e => { const k = e.target.dataset?.f; if (k && k !== "q") { S.f[k] = e.target.value; render(); } });
+let qt; document.addEventListener("input", e => { if (e.target.dataset?.f === "q") { S.f.q = e.target.value; clearTimeout(qt); qt = setTimeout(() => { const pos = e.target.selectionStart; render(); const i = $('[data-f="q"]'); if (i) { i.focus(); i.setSelectionRange(pos, pos); } }, 250); } });
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "lf") return; e.preventDefault();
+  const email = e.target.em.value.trim(), password = e.target.pw.value;
+  S.email = email;
+  S.busy = true; S.err = ""; render();
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  S.busy = false;
+  if (error) { S.err = /Invalid login/i.test(error.message) ? "電子郵件或密碼不正確，請再試一次。" : "登入失敗：" + error.message; render(); }
+});
+
+try { S.page = localStorage.getItem("mi_page") || "home"; } catch (_) {}
+sb.auth.onAuthStateChange((ev, session) => {
+  const u = session?.user || null, changed = (u?.id || null) !== (S.user?.id || null);
+  S.user = u;
+  if (!u) { S.data = null; render(); return; }
+  if (changed || !S.data) load();
+});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
